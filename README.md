@@ -12,5 +12,5 @@
 - [publication paper](https://www.overleaf.com/7281971784qhdpnycqqcbt#3217d5)
   
 ## PowerPoint 
-- [publication paper](https://uniandes-my.sharepoint.com/:p:/g/personal/l_gomez1_uniandes_edu_co/EecCsKRS1VlEhTEshUQxEgYBRLSL8vFOSgoinMTD61dzOg?e=OpZOQ1)
+- [power point](https://uniandes-my.sharepoint.com/:p:/r/personal/l_gomez1_uniandes_edu_co/Documents/PROYECTO_ESPECIAL_AML/formato_avances_proyecto.pptx?d=wa4b002e7d552445985312c8544311206&csf=1&web=1&e=UJewAs)
 
