@@ -12,5 +12,5 @@
 - [publication paper](https://www.overleaf.com/7281971784qhdpnycqqcbt#3217d5)
   
 ## PowerPoint 
-
+- [publication paper](https://uniandes-my.sharepoint.com/:p:/g/personal/l_gomez1_uniandes_edu_co/EecCsKRS1VlEhTEshUQxEgYBRLSL8vFOSgoinMTD61dzOg?e=OpZOQ1)
 
