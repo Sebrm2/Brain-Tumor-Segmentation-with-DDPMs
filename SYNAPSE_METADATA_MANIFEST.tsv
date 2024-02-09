@@ -1,0 +1,4 @@
+path	parent	name	id	synapseStore	contentType	used	executed	activityName	activityDescription
+/media/user_home0/lgomez/Brain-Tumor-Segmentation-with-DDPMs/BraTS2023_2017_GLI_Mapping.xlsx	syn51514105	BraTS2023_2017_GLI_Mapping.xlsx	syn51615438	True	application/vnd.openxmlformats-officedocument.spreadsheetml.sheet				
+/media/user_home0/lgomez/Brain-Tumor-Segmentation-with-DDPMs/ASNR-MICCAI-BraTS2023-GLI-Challenge-ValidationData.zip	syn51514105	ASNR-MICCAI-BraTS2023-GLI-Challenge-ValidationData.zip	syn51514110	True	application/zip				
+/media/user_home0/lgomez/Brain-Tumor-Segmentation-with-DDPMs/ASNR-MICCAI-BraTS2023-GLI-Challenge-TrainingData.zip	syn51514105	ASNR-MICCAI-BraTS2023-GLI-Challenge-TrainingData.zip	syn51514132	True	application/zip				
