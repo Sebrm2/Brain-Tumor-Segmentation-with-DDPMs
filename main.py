@@ -97,13 +97,13 @@ print("\033[1;35;40m Generating the model...\033[0m")
 """                           MODEL DEEPLABV3 WITH BACKBONE RESNET50                           """
 
 model = models.segmentation.deeplabv3_resnet101(pretrained=True)
-
+breakpoint()
 cp_model = copy.deepcopy(model)
 
 #model.conv = nn.Conv2d(32, 4, kernel_size=(1, 1), stride=(1, 1)) #TODO: this is not for deeplab3 maybe?
 # change the number of input channels of the first conv layer
 #model.backbone.conv1 = nn.Conv2d(1, 64, kernel_size=(7,7), stride=(2, 2), padding=(3, 3), bias=False)
-model.classifier[4] = nn.Conv2d(512, 4, kernel_size=(1,1), stride=(1, 1)) # TODO: change to 256 if it is deeplabv3_resnet50, or 512 if it is fcn_resnet50
+model.classifier[4] = nn.Conv2d(256, 4, kernel_size=(1,1), stride=(1, 1)) # TODO: change to 256 if it is deeplabv3_resnet50, or 512 if it is fcn_resnet50
 model.aux_classifier[4] = nn.Conv2d(256, 4, kernel_size=(1,1), stride=(1, 1))
 
 # define state_dict
@@ -137,9 +137,9 @@ if osp.exists(args.save):
 optimizer = optim.Adam(model.parameters(), lr=args.lr)
 scheduler = sch.StepLR(optimizer,step_size=10,gamma=args.gamma)
 
-class_weights =torch.tensor([0.3, 1],dtype=torch.float).cuda()
+#class_weights =torch.tensor([0.3, 1],dtype=torch.float).cuda()
 #criterion = monai.losses.DiceCELoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean",ce_weight=class_weights) #type: ignore
-criterion = nn.CrossEntropyLoss(weight=class_weights,reduction='mean')
+criterion = nn.CrossEntropyLoss(reduction='mean')
 metrics = Evaluator()
 
 ##################################################################################################
@@ -156,7 +156,7 @@ def train(epoch)-> None:
         data, target = Variable(data), Variable(target).long().squeeze_(1)
         optimizer.zero_grad()
         output = model(data)
-        loss = criterion(output, target.unsqueeze(1)) #TODO: change to output['out'] if it is deeplabv3_resnet50 or fcn_resnet50. Change to output if it is unet and target.unsqueeze(1) if it criterion monai
+        loss = criterion(output['out'], target) #TODO: change to output['out'] if it is deeplabv3_resnet50 or fcn_resnet50. Change to output if it is unet and target.unsqueeze(1) if it criterion monai
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
@@ -184,7 +184,7 @@ def test(epoch)-> float:
         data, target = Variable(data), Variable(target).long().squeeze_(1)
         with torch.no_grad():
             output = model(data)
-        test_loss += criterion(output['out'], target.unsqueeze(1)).item() #TODO: change to output['out'] if it is deeplabv3_resnet50 and target.unsqueeze(1) if it is criterion monai
+        test_loss += criterion(output['out'], target).item() #TODO: change to output['out'] if it is deeplabv3_resnet50 and target.unsqueeze(1) if it is criterion monai
         pred = output['out'].cpu() # TODO: change to output['out'] if it is deeplabv3_resnet50 or fcn_resnet50
         pred = F.softmax(pred, dim=1).numpy()
         target = target.cpu().numpy()
@@ -208,6 +208,10 @@ def test(epoch)-> float:
 
     Dice = np.mean(DSC)
     #gr.save_value(round(Dice,4),f"data/dice{args.model}.txt")
+    with open(f"data/dice{args.model}.txt", "a") as f:
+        f.write(f"Test\n")
+        f.write(f"Epoch: {epoch}\n")
+        f.write(f"Dice: {Dice}\n")
     print('Test:')
     print('[Epoch: %d, numImages: %5d]' % (epoch, len(test_loader.dataset))) # type: ignore
     print("Dice:{}".format(Dice))

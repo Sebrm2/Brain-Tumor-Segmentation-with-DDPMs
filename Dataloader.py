@@ -48,8 +48,9 @@ class BRATSDataset(Dataset):
         'Generates one sample of data'
         image_path = os.path.join(self.image_files[idx])
         label_path = os.path.join(self.label_files[idx])
-        image = np.load(image_path)
-        label = np.load(label_path)
+
+        image = np.array(Image.open(image_path))
+        label = np.array(Image.open(label_path))
 
         assert not np.any(np.isnan(image))
         assert not np.any(np.isnan(label))
