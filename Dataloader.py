@@ -16,12 +16,12 @@ class BRATSDataset(Dataset):
         self.label_files = []
 
         if dataset_type == 'train':
-            image_dir = 'imagesTr'
-            label_dir = 'labelsTr'
+            image_dir = 'Train/Data'
+            label_dir = 'Train/Mask'
 
         elif dataset_type == 'test':
-            image_dir = 'imagesTs'
-            label_dir = 'labelsTs'
+            image_dir = 'Test/Data'
+            label_dir = 'Test/Mask'
         else:
             raise ValueError(f'Invalid dataset type: {dataset_type}')
         
@@ -37,8 +37,8 @@ class BRATSDataset(Dataset):
         
         assert(len(self.image_files) == len(self.label_files))
 
-        print(len(self.image_files))
-        print(len(self.label_files))
+        print(f" The total numer of images in {dataset_type}: {len(self.image_files)}")
+        print(f" The total numer of labels in {dataset_type}: {len(self.label_files)}")
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -53,11 +53,6 @@ class BRATSDataset(Dataset):
 
         assert not np.any(np.isnan(image))
         assert not np.any(np.isnan(label))
-
-        #image = resize(image, (256,256)) # Uncomment if is UNET
-        #label = resize(label, (256,256)) # Uncomment if is UNET
-        #image = Image.fromarray(image).convert('RGB')
-        #label = Image.fromarray(label).convert('L')
         
         image = np.repeat(image[..., np.newaxis], 3, axis=-1)
         m, s = np.mean(image, axis=(0, 1)), np.std(image, axis=(0, 1))
@@ -74,5 +69,5 @@ class BRATSDataset(Dataset):
         return image, label
     
     
-    def get_path(self,index:int)-> tuple[str,str]:
+    def get_path(self,index:int):
         return self.image_files[index], self.label_files[index]
