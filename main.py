@@ -49,9 +49,9 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
 parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='how many batches to wait before '
                          'logging training status')
-parser.add_argument('--save', type=str, default='models/modelFCN101monai_CORONAL.pt', #TODO: Chage according to the model
+parser.add_argument('--save', type=str, default='modelDL101cross_8BS.pt', #TODO: Chage according to the model
                     help='file on which to save model weights')
-parser.add_argument('--model', type=str, default='FCN101monai_CORONAL', #TODO: Chage according to the model (file name changes)
+parser.add_argument('--model', type=str, default='DLR101_8BATCH', #TODO: Chage according to the model (file name changes)
                     help='name of the model to use (default: UNET)')
 args = parser.parse_args()
 
@@ -215,7 +215,7 @@ def test(epoch)-> float:
 
     Dice = np.mean(DSC)
     #gr.save_value(round(Dice,4),f"data/dice{args.model}.txt")
-    with open(f"data/dice{args.model}.txt", "a") as f:
+    with open(f"dice{args.model}.txt", "a") as f:
         f.write(f"Test\n")
         f.write(f"Epoch: {epoch}\n")
         f.write(f"Dice: {Dice}\n")
