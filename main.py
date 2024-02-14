@@ -30,11 +30,11 @@ import utils.scoring as scoring
 ##################################################################################################
 print("\033[1;35;40m Adding arguments...\033[0m")
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-parser.add_argument('--batch-size', type=int, default=20, metavar='N',
+parser.add_argument('--batch-size', type=int, default=8, metavar='N',
                     help='input batch size for training (default: 64)')
 parser.add_argument('--test-batch-size', type=int, default=10, metavar='N',
                     help='input batch size for testing (default: 1000)')
-parser.add_argument('--epochs', type=int, default=20, metavar='N',
+parser.add_argument('--epochs', type=int, default=5, metavar='N',
                     help='number of epochs to train (default: 10)')
 parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                     help='learning rate (default: 0.01)')
@@ -60,6 +60,7 @@ args.cuda = not args.no_cuda and torch.cuda.is_available()
 torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
+    
 
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
@@ -69,7 +70,7 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 ##################################################################################################
 
 print("\033[1;35;40m Loading the folders...\033[0m")
-directory = 'BraTS2023_StructuredData/BraTS2023_AxialSlices' # TODO: change to Axial, Coronal or Sagittal
+directory = "/media/user_home0/srodriguez47/ddpm/BraTS2023_StructuredData/BraTS2023_AxialSlices" # TODO: change to Axial, Coronal or Sagittal
 # Create a DataLoader instance for train 
 train_loader = DataLoader(
     BRATSDataset(data_path = directory, dataset_type='train',
@@ -97,7 +98,7 @@ print("\033[1;35;40m Generating the model...\033[0m")
 """                           MODEL DEEPLABV3 WITH BACKBONE RESNET50                           """
 
 model = models.segmentation.deeplabv3_resnet101(pretrained=True)
-breakpoint()
+
 cp_model = copy.deepcopy(model)
 
 #model.conv = nn.Conv2d(32, 4, kernel_size=(1, 1), stride=(1, 1)) #TODO: this is not for deeplab3 maybe?
@@ -117,8 +118,14 @@ sd_model = model.state_dict()
 model.load_state_dict(sd_model)
 #cp_model = copy.deepcopy(model) #we don't use it 
 
+
 if args.cuda:
-    model.cuda()
+    torch.cuda.manual_seed(args.seed)
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model = torch.nn.DataParallel(model)
+        model.cuda()
+
 
 
 load_model = False
