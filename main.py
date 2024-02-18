@@ -23,14 +23,14 @@ from Evaluator import Evaluator
 from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as sch
 import utils.scoring as scoring
-
+import monai
 
 ##################################################################################################
 #                                     ADD ARGUMENTS                                              #
 ##################################################################################################
 print("\033[1;35;40m Adding arguments...\033[0m")
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-parser.add_argument('--batch-size', type=int, default=8, metavar='N',
+parser.add_argument('--batch-size', type=int, default=20, metavar='N',
                     help='input batch size for training (default: 64)')
 parser.add_argument('--test-batch-size', type=int, default=10, metavar='N',
                     help='input batch size for testing (default: 1000)')
@@ -49,9 +49,9 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
 parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='how many batches to wait before '
                          'logging training status')
-parser.add_argument('--save', type=str, default='modelDL101cross_8BS.pt', #TODO: Chage according to the model
+parser.add_argument('--save', type=str, default='modelDL101cross_20BS.pt', #TODO: Chage according to the model
                     help='file on which to save model weights')
-parser.add_argument('--model', type=str, default='DLR101_8BATCH', #TODO: Chage according to the model (file name changes)
+parser.add_argument('--model', type=str, default='DLR101_20BATCH', #TODO: Chage according to the model (file name changes)
                     help='name of the model to use (default: UNET)')
 args = parser.parse_args()
 
@@ -70,7 +70,7 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 ##################################################################################################
 
 print("\033[1;35;40m Loading the folders...\033[0m")
-directory = "/media/user_home0/srodriguez47/ddpm/BraTS2023_StructuredData/BraTS2023_AxialSlices" # TODO: change to Axial, Coronal or Sagittal
+directory = "BraTS2023_StructuredData/BraTS2023_AxialSlices" # TODO: change to Axial, Coronal or Sagittal
 # Create a DataLoader instance for train 
 train_loader = DataLoader(
     BRATSDataset(data_path = directory, dataset_type='train',
@@ -79,6 +79,7 @@ train_loader = DataLoader(
                    ])), 
     args.batch_size,
     shuffle=True, **kwargs)
+
 # Create a DataLoader instance for test
 test_loader = DataLoader(
     BRATSDataset(data_path = directory,
@@ -144,9 +145,9 @@ if osp.exists(args.save):
 optimizer = optim.Adam(model.parameters(), lr=args.lr)
 scheduler = sch.StepLR(optimizer,step_size=10,gamma=args.gamma)
 
-#class_weights =torch.tensor([0.3, 1],dtype=torch.float).cuda()
-#criterion = monai.losses.DiceCELoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean",ce_weight=class_weights) #type: ignore
-criterion = nn.CrossEntropyLoss(reduction='mean')
+class_weights = torch.tensor([0.01, 1, 1, 1], dtype=torch.float).cuda()
+criterion = monai.losses.DiceCELoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean",ce_weight=class_weights) #type: ignore
+#criterion = nn.CrossEntropyLoss(reduction='mean')
 metrics = Evaluator()
 
 ##################################################################################################
@@ -163,7 +164,7 @@ def train(epoch)-> None:
         data, target = Variable(data), Variable(target).long().squeeze_(1)
         optimizer.zero_grad()
         output = model(data)
-        loss = criterion(output['out'], target) #TODO: change to output['out'] if it is deeplabv3_resnet50 or fcn_resnet50. Change to output if it is unet and target.unsqueeze(1) if it criterion monai
+        loss = criterion(output['out'], target.unsqueeze(1)) #TODO: change to output['out'] if it is deeplabv3_resnet50 or fcn_resnet50. Change to output if it is unet and target.unsqueeze(1) if it criterion monai
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
@@ -191,7 +192,7 @@ def test(epoch)-> float:
         data, target = Variable(data), Variable(target).long().squeeze_(1)
         with torch.no_grad():
             output = model(data)
-        test_loss += criterion(output['out'], target).item() #TODO: change to output['out'] if it is deeplabv3_resnet50 and target.unsqueeze(1) if it is criterion monai
+        test_loss += criterion(output['out'], target.unsqueeze(1)).item() #TODO: change to output['out'] if it is deeplabv3_resnet50 and target.unsqueeze(1) if it is criterion monai
         pred = output['out'].cpu() # TODO: change to output['out'] if it is deeplabv3_resnet50 or fcn_resnet50
         pred = F.softmax(pred, dim=1).numpy()
         target = target.cpu().numpy()
@@ -210,7 +211,7 @@ def test(epoch)-> float:
         DSC.extend(lista)
     
     if epoch == args.epochs:
-        with open (f"models/{args.model}.pkl", "wb") as f:
+        with open (f"{args.model}.pkl", "wb") as f:
             pickle.dump(pred_list, f)
 
     Dice = np.mean(DSC)
