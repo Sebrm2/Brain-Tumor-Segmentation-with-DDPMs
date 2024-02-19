@@ -26,12 +26,12 @@ class BRATSDataset(Dataset):
             raise ValueError(f'Invalid dataset type: {dataset_type}')
         
         for root, dirs, files in os.walk(os.path.join(data_path, image_dir)):
-            for file in sorted(files):
+            for file in sorted(files[:10000]):
                 if file.endswith('.jpg'):
                     self.image_files.append(os.path.join(root, file))
 
         for root, dirs, files in os.walk(os.path.join(data_path, label_dir)):
-            for file in sorted(files):
+            for file in sorted(files[:10000]):
                 if file.endswith('.jpg'):
                     self.label_files.append(os.path.join(root, file))
         

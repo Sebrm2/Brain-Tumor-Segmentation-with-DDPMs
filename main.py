@@ -19,22 +19,22 @@ import torch.utils.model_zoo as model_zoo
 import torchvision
 from torchvision import datasets, transforms, models
 from Dataloader import BRATSDataset
-from Evaluator import Evaluator
+from utils.Evaluator import Evaluator
 from torch.utils.data import DataLoader
 import torch.optim.lr_scheduler as sch
 import utils.scoring as scoring
 import monai
-
+import utils.Graphics as gr
 ##################################################################################################
 #                                     ADD ARGUMENTS                                              #
 ##################################################################################################
 print("\033[1;35;40m Adding arguments...\033[0m")
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-parser.add_argument('--batch-size', type=int, default=20, metavar='N',
+parser.add_argument('--batch-size', type=int, default=32, metavar='N',
                     help='input batch size for training (default: 64)')
 parser.add_argument('--test-batch-size', type=int, default=10, metavar='N',
                     help='input batch size for testing (default: 1000)')
-parser.add_argument('--epochs', type=int, default=5, metavar='N',
+parser.add_argument('--epochs', type=int, default=8, metavar='N',
                     help='number of epochs to train (default: 10)')
 parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                     help='learning rate (default: 0.01)')
@@ -49,9 +49,9 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
 parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='how many batches to wait before '
                          'logging training status')
-parser.add_argument('--save', type=str, default='modelDL101cross_20BS.pt', #TODO: Chage according to the model
+parser.add_argument('--save', type=str, default='modelDL101monai_32BS.pt', #TODO: Change according to the model
                     help='file on which to save model weights')
-parser.add_argument('--model', type=str, default='DLR101_20BATCH', #TODO: Chage according to the model (file name changes)
+parser.add_argument('--model', type=str, default='DLR101_32BATCH_monai', #TODO: Change according to the model (file name changes)
                     help='name of the model to use (default: UNET)')
 args = parser.parse_args()
 
@@ -70,7 +70,7 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 ##################################################################################################
 
 print("\033[1;35;40m Loading the folders...\033[0m")
-directory = "BraTS2023_StructuredData/BraTS2023_AxialSlices" # TODO: change to Axial, Coronal or Sagittal
+directory = "/home/srodriguez47/ddpm/BraTS2023_StructuredData/BraTS2023_AxialSlices" # TODO: change to Axial, Coronal or Sagittal
 # Create a DataLoader instance for train 
 train_loader = DataLoader(
     BRATSDataset(data_path = directory, dataset_type='train',
@@ -203,7 +203,7 @@ def test(epoch)-> float:
         datito, predi = data, pred
 
         if epoch in (args.epochs,1,args.epochs//2):
-            #gr.plot_image(datis,targit,datito,predi,epoch, args.model,x)
+            gr.plot_image(datis,targit,datito,predi,epoch, args.model,x)
             x += 1
         lista = []
         for i in range(target.shape[0]):
