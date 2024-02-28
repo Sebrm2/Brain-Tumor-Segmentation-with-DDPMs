@@ -123,7 +123,7 @@ model.load_state_dict(sd_model)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
     if torch.cuda.device_count() > 1:
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        print("Using", torch.cuda.device_count(), "GPUs.")
         model = torch.nn.DataParallel(model)
         model.cuda()
 

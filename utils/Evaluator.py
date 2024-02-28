@@ -19,24 +19,57 @@ class Evaluator(object):
     def reset(self):
         self.confusion_matrix = np.zeros((self.num_class,) * 2)
     
-    def dice_coefficient(self):
-        """
-        Computes the Dice coefficient, a measure of set similarity.
+    def dice_coef(truth, prediction, batchwise=False):
+        '''
+        Computes the Sørensen–Dice coefficient for the input matrices. If batchwise=True, the first dimension of the input
+        images is assumed to indicate the batch, and this function will return a coefficient for each sample. i.e., images
+        of dimension (4,1,20,20,20) would return 4 coefficients.
+        Parameters
+        ----------
+        prediction : np.array
+            Array containing the prediction.
+        truth : np.array
+            Array containing the ground truth.
+        batchwise : bool
+            Optional. Indicate whether the computation should be done batchwise, assuming that the first dimension of the
+            data is the batch. Default: False.
         Returns
         -------
-        dice : float
-            Dice coefficient as a float on range [0,1].
-            Maximum similarity = 1
-            No similarity = 0
-        """
+        float or tuple
+            Sørensen–Dice coefficient.
+        '''
 
-        intersection = np.diag(self.confusion_matrix)
-        union = np.sum(self.confusion_matrix, axis=0) + np.sum(self.confusion_matrix, axis=1) - intersection
+        # Reshape the input to reduce computation to a dot product
+        if(not batchwise):
+            prediction = np.reshape(prediction, (1,np.prod(prediction.shape)))
+            truth = np.reshape(truth, (1,np.prod(truth.shape)))
+        else:
+            pred_shape = prediction.shape
+            prediction = np.reshape(prediction, (pred_shape[0], np.prod(pred_shape[1:])))
+            truth_shape = truth.shape
+            truth = np.reshape(truth, (truth_shape[0], np.prod(truth_shape[1:])))
 
-        dice = (2 * intersection) / (union+intersection)
-        dice = np.nanmean(dice)
+        # Prevent values >1 from inflating the score
+        np.clip(truth, 0, 1, out=truth)
+        np.clip(prediction, 0, 1, out=prediction)
 
-        return dice
+        # Compute dice coef
+        coef_list = []
+        for i in range(truth.shape[0]):
+            coef_denom = np.sum(prediction[i,...]) + np.sum(truth[i,...])
+            if(coef_denom == 0):  # If there are no non-zero labels in either the truth or the prediction
+                coef_list.append(1.0)  # "Perfect" score
+                continue
+            coef = prediction[i:i+1, ...] @ truth[i:i+1, ...].T
+            coef = 2*coef / coef_denom
+            coef_list.append(float(coef))
+
+        # Return list of coeffs if batchwise, otherwise return float
+        if(batchwise):
+            return tuple(coef_list)
+        else:
+            return coef_list[0]
+        
 
     def compute_dice(im1, im2, empty_value=1.0):
         """
