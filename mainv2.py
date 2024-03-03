@@ -40,11 +40,11 @@ else:
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 # Set main directory of data
-directory = "/home/srodriguez47/ddpm/BraTS2023_StructuredData/BraTS2023_AxialSlices" # TODO: change this to the correct path
+directory = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV2/BraTS2023_AxialSlices" # TODO: change this to the correct path
 
 # Initialize WandB
 wandb.login()
-wandb.init(project="brainDDPM", name="seb4", config=args)
+wandb.init(project="brainDDPM", name="seb11", config=args)
 args = wandb.config
 # Load the data
 print("\033[1;35;40m Loading the folders...\033[0m")
@@ -60,11 +60,11 @@ test_loader = DataLoader(BRATSDataset(data_path = directory, dataset_type='test'
 # Load the model
 print("\033[1;35;40m Loading the model...\033[0m")
 
-model = models.segmentation.deeplabv3_resnet101(pretrained=True)
-model.classifier[4] = nn.Conv2d(256, 2, kernel_size=(1, 1), stride=(1, 1))
-model.aux_classifier[4] = nn.Conv2d(256, 2, kernel_size=(1, 1), stride=(1, 1))
+model = models.segmentation.deeplabv3_resnet101(pretrained=True, progress=True)
+model.classifier[4] = nn.Conv2d(256, 4, kernel_size=(1, 1), stride=(1, 1))
+model.aux_classifier[4] = nn.Conv2d(256, 4, kernel_size=(1, 1), stride=(1, 1))
 load_model = False
-
+#breakpoint()
 # Set number of GPUs to use
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
@@ -85,12 +85,11 @@ if osp.exists(args.save):
 
 # Set the optimizer, scheduler and loss function
 
-optimizer = optim.Adam(model.parameters(), lr=args.lr) #TODO we can add weight decay later on maybe?
+optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=args.weight_decay) #TODO we can add weight decay later on maybe?
 scheduler = sch.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
-class_weights = torch.tensor([1]) #idk if this is the correct way to do it
-criterion = monai.losses.DiceCELoss(softmax=True,to_onehot_y=True,include_background=False,
-                                    reduction="mean") 
-
+class_weights = torch.tensor([],dtype=torch.float).cuda() #idk if this is the correct way to do it
+criterion = monai.losses.DiceLoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean")
+#criterion = nn.CrossEntropyLoss(reduction='mean', weight=class_weights)
 # Initialize the evaluator
 metrics = Evaluator()
 
@@ -111,6 +110,7 @@ def train(epoch)-> None:
         output = model(data)
         loss = criterion(output['out'], target.unsqueeze(1)) 
         loss.backward()
+        #print("Gradients:", [p.grad for p in model.parameters() if p.grad is not None])  
         optimizer.step()
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
@@ -196,15 +196,15 @@ if __name__ == '__main__':
                 epoch, time.time() - epoch_start_time))
             print('-' * 89)
 
-            '''
+            
             if best_loss is None or test_loss < best_loss:
                 best_loss = test_loss
-                with open(args.save, 'wb') as fp:
-                    state = model.state_dict()
-                    torch.save(state, fp)
-            '''
+                #with open(args.save, 'wb') as fp:
+                #    state = model.state_dict()
+                #    torch.save(state, fp)
+            
     
-            scheduler.step(test_loss) 
+            scheduler.step() 
 
     except KeyboardInterrupt:
         print('-' * 89)
