@@ -9,13 +9,13 @@ def model_config():
                         help='input batch size for training (default: idk)')
     parser.add_argument('--epochs', type=int, default=6,
                         help='number of epochs to train (default: idk)')
-    parser.add_argument('--lr', type=float, default= 0.001,
+    parser.add_argument('--lr', type=float, default= 0.01,
                         help='learning rate (default: idk)')
-    parser.add_argument('--weight-decay', type=float, default=1e-6,
+    parser.add_argument('--weight-decay', type=float, default=1e-4,
                         help='weight decay (default: 1e-4)')
     parser.add_argument('--gamma', type=float, default=0.5,
                         help='learning rate decay factor (default: 0.5)')
-    parser.add_argument('--step-size', type=int, default=3,
+    parser.add_argument('--step-size', type=int, default=2,
                         help='step size for scheduler (default: 10)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')

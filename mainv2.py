@@ -40,11 +40,11 @@ else:
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 # Set main directory of data
-directory = "/home/srodriguez47/ddpm/BraTS2023_StructuredData/BraTS2023_AxialSlices" # TODO: change this to the correct path
+directory = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV2/BraTS2023_AxialSlices" # TODO: change this to the correct path
 
 # Initialize WandB
 wandb.login()
-wandb.init(project="brainDDPM", name="seb11", config=args)
+wandb.init(project="brainDDPM", name="seb13", config=args)
 args = wandb.config
 # Load the data
 print("\033[1;35;40m Loading the folders...\033[0m")
@@ -61,8 +61,9 @@ test_loader = DataLoader(BRATSDataset(data_path = directory, dataset_type='test'
 print("\033[1;35;40m Loading the model...\033[0m")
 
 model = models.segmentation.deeplabv3_resnet101(pretrained=True, progress=True)
-model.classifier[4] = nn.Conv2d(256, 4, kernel_size=(1, 1), stride=(1, 1))
-model.aux_classifier[4] = nn.Conv2d(256, 4, kernel_size=(1, 1), stride=(1, 1))
+#model.backbone.conv1 = nn.Conv2d(1, 64, kernel_size=(7,7), stride=(2, 2), padding=(3, 3), bias=False)
+model.classifier[4] = nn.Conv2d(256, 2, kernel_size=(1, 1), stride=(1, 1))
+model.aux_classifier[4] = nn.Conv2d(256, 2, kernel_size=(1, 1), stride=(1, 1))
 load_model = False
 #breakpoint()
 # Set number of GPUs to use
@@ -85,11 +86,12 @@ if osp.exists(args.save):
 
 # Set the optimizer, scheduler and loss function
 
-optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=args.weight_decay) #TODO we can add weight decay later on maybe?
+#optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=args.weight_decay) #TODO we can add weight decay later on maybe?
+optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 scheduler = sch.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
-class_weights = torch.tensor([],dtype=torch.float).cuda() #idk if this is the correct way to do it
-criterion = monai.losses.DiceLoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean")
-#criterion = nn.CrossEntropyLoss(reduction='mean', weight=class_weights)
+class_weights = torch.tensor([0.1,0.9],dtype=torch.float).cuda() #idk if this is the correct way to do it
+#criterion = monai.losses.DiceLoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean")
+criterion = nn.CrossEntropyLoss(reduction='mean', weight=class_weights)
 # Initialize the evaluator
 metrics = Evaluator()
 
@@ -108,7 +110,8 @@ def train(epoch)-> None:
         data, target = Variable(data), Variable(target).long().squeeze_(1)
         optimizer.zero_grad()
         output = model(data)
-        loss = criterion(output['out'], target.unsqueeze(1)) 
+        loss = criterion(output['out'], target) # for crossentropy
+        #loss = criterion(output['out'], target.unsqueeze(1)) # for monai
         loss.backward()
         #print("Gradients:", [p.grad for p in model.parameters() if p.grad is not None])  
         optimizer.step()
@@ -140,7 +143,8 @@ def test(epoch)-> float:
         data, target = Variable(data), Variable(target).long().squeeze_(1)
         with torch.no_grad():
             output = model(data)
-        test_loss += criterion(output['out'], target.unsqueeze(1)).item() 
+        test_loss += criterion(output['out'], target).item() # for crossentropy
+        #test_loss += criterion(output['out'], target.unsqueeze(1)).item() # for monai
         pred = output['out'].cpu() 
         pred = F.softmax(pred, dim=1).numpy()
         target = target.cpu().numpy()
