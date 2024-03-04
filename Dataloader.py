@@ -8,12 +8,13 @@ from PIL import Image
 
 # Dataset class
 class BRATSDataset(Dataset):
-    def __init__(self, data_path, transform=None,dataset_type='train'):
+    def __init__(self, data_path, transform=None,dataset_type='train', limit_samples=None):
         super(BRATSDataset, self).__init__()
         self.data_path = data_path
         self.transform = transform
         self.image_files = []
         self.label_files = []
+        self.limit_samples = limit_samples
 
         if dataset_type == 'train':
             image_dir = 'Train/Data'
@@ -42,6 +43,9 @@ class BRATSDataset(Dataset):
 
     def __len__(self):
         'Denotes the total number of samples'
+
+        if self.limit_samples is not None:
+            return self.limit_samples
         return len(self.image_files)
 
     def __getitem__(self, idx):

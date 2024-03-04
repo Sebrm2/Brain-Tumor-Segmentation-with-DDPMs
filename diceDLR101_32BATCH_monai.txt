@@ -1,0 +1,18 @@
+Test
+Epoch: 1
+Dice: 0.74
+Test
+Epoch: 2
+Dice: 0.74
+Test
+Epoch: 3
+Dice: 0.74
+Test
+Epoch: 4
+Dice: 0.74
+Test
+Epoch: 5
+Dice: 0.74
+Test
+Epoch: 6
+Dice: 0.74

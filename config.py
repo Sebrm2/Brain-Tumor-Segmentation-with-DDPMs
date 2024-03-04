@@ -26,6 +26,8 @@ def model_config():
                             'logging training status')
     parser.add_argument('--save', type=str, default='modelDL101monai_32BS.pt', #TODO: Change according to the model (.pt name changes)
                         help='file on which to save model weights')
+    parser.add_argument('--momentum', type=float, default=0.5, metavar='M',
+                    help='SGD momentum (default: 0.5)')
     parser.add_argument('--model', type=str, default='DLR101_32BATCH_monai', #TODO: Change according to the model (.txt name changes)
                         help='name of the model to use (default: idk)')
     args = parser.parse_args()
