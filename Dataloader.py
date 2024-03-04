@@ -55,6 +55,7 @@ class BRATSDataset(Dataset):
 
         image = np.array(Image.open(image_path))
         label = np.array(Image.open(label_path))
+        label[label != 0] = 1
 
         assert not np.any(np.isnan(image))
         assert not np.any(np.isnan(label))
