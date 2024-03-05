@@ -44,7 +44,7 @@ directory = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV2/BraTS2023_AxialS
 
 # Initialize WandB
 wandb.login()
-wandb.init(project="brainDDPM", name="seb15", config=args)
+wandb.init(project="brainDDPM", name="seb16", config=args)
 args = wandb.config
 # Load the data
 print("\033[1;35;40m Loading the folders...\033[0m")
