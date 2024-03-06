@@ -40,7 +40,7 @@ else:
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 # Set main directory of data
-directory = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV2/BraTS2023_AxialSlices" # TODO: change this to the correct path
+directory = "BraTS2023_StructuredDataV2/BraTS2023_AxialSlices" # TODO: change this to the correct path
 
 # Initialize WandB
 wandb.login()

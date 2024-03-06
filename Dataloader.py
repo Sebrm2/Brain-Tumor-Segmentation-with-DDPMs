@@ -55,7 +55,6 @@ class BRATSDataset(Dataset):
 
         image = np.array(Image.open(image_path))
         label = np.array(Image.open(label_path))
-        label[label != 0] = 1
 
         assert not np.any(np.isnan(image))
         assert not np.any(np.isnan(label))
@@ -66,6 +65,7 @@ class BRATSDataset(Dataset):
         if self.transform:
             image = self.transform(image)
             label = self.transform(label)
+            label[label != 0] = 1
 
             if (s==0).any():
                 image = transforms.Normalize(mean=m, std=s + 1e-6)(image)

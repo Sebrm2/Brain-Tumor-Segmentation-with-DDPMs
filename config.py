@@ -5,7 +5,7 @@ import argparse
 def model_config():
 
     parser = argparse.ArgumentParser(description='PyTorch Brain Tumor Segmentation')
-    parser.add_argument('--batch-size', type=int, default=32,
+    parser.add_argument('--batch-size', type=int, default=16,
                         help='input batch size for training (default: idk)')
     parser.add_argument('--epochs', type=int, default=6,
                         help='number of epochs to train (default: idk)')

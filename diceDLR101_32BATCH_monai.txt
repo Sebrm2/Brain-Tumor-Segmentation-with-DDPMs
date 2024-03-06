@@ -16,3 +16,18 @@ Dice: 0.74
 Test
 Epoch: 6
 Dice: 0.74
+Test
+Epoch: 1
+Dice: 0.27201910204753105
+Test
+Epoch: 2
+Dice: 0.5446589546304729
+Test
+Epoch: 3
+Dice: 0.6408450708978691
+Test
+Epoch: 4
+Dice: 0.6446575203205669
+Test
+Epoch: 5
+Dice: 0.6531530157514069
