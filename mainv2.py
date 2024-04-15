@@ -106,19 +106,15 @@ def train(epoch)-> None:
         data = data.float()
         if args.cuda:
             data, target = data.cuda(), target.cuda()
-        #print(data.shape,target.shape)
         #data, target = Variable(data), Variable(target).long().squeeze_(1) #for crossentropyloss
         data, target = Variable(data), Variable(target).long() #for diceloss
         
         optimizer.zero_grad()
         output = model(data)
-        
-        #print(np.shape(output['out']),np.shape(target))
-        #train_dice = scoring.multiclass_dice_score(target.cpu().numpy(), output['out'].cpu().detach().numpy(), 2)
+   
         #loss = criterion(output['out'], target) # for crossentropy
         loss = criterion(output['out'], target) # for diceloss
         loss.backward()
-        #print("Gradients:", [p.grad for p in model.parameters() if p.grad is not None])  
         optimizer.step()
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
@@ -151,34 +147,17 @@ def test(epoch)-> float:
         with torch.no_grad():
             output = model(data)
 
-        #test_loss = criterion(output['out'], target).item() # for crossentropy
-        test_loss += criterion(output['out'], target).item() # for diceloss
-        #test_loss_list.append(test_loss)
+        test_loss += criterion(output['out'], target).item() # for diceloss or crossentropy
         pred = output['out'].cpu() 
         pred = F.softmax(pred, dim=1).numpy()
         target = target.cpu().numpy()
         pred_list.append(pred)
-        
         pred = np.argmax(pred, axis=1)
-        #print(np.shape(pred),np.shape(target))
-        
-        datito, predi = data, pred
 
         if epoch in (args.epochs, 1, args.epochs // 2):
-            # Log input image, ground truth, and predicted segmentation during testing
+ 
             for i in range(target.shape[0]):
-                #print("A",np.shape(targit[i]),"B",(np.shape(np.expand_dims(pred[i], axis=0))))  
-                #print("C",np.unique(targit[i]),"D",(np.unique(np.expand_dims(pred[i], axis=0))))
-                #print("Unique values in ground truth:", torch.unique(targit[i]))
-                #print("Min value in ground truth:", torch.min(targit[i]))
-                #print("Max value in ground truth:", torch.max(targit[i]))
                 pred_tensor = torch.tensor(pred[i], dtype=torch.float64)
-
-                #print("Unique values in prediction:", torch.unique(pred_tensor))
-                #print("Min value in prediction:", torch.min(pred_tensor))
-                #print("Max value in prediction:", torch.max(pred_tensor))
-
-
                 wandb.log({"input_image": wandb.Image(datis[i]),
                            "ground_truth": wandb.Image(targit[i]),
                            "predicted_segmentation": wandb.Image(pred_tensor.unsqueeze(0))})
@@ -229,7 +208,6 @@ if __name__ == '__main__':
                 #    state = model.state_dict()
                 #    torch.save(state, fp)
             
-    
             scheduler.step() 
 
     except KeyboardInterrupt:
