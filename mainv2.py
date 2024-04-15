@@ -40,11 +40,11 @@ else:
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 # Set main directory of data
-directory = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV3.0_t1c/BraTS2023_AxialSlices" # TODO: change this to the correct path
+directory = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV3.0-t1c/BraTS2023_AxialSlices" # TODO: change this to the correct path
 
 # Initialize WandB
 wandb.login()
-wandb.init(project="brainDDPM", name="seb_3.0_t1c_16batch", config=args)
+wandb.init(project="brainDDPM", name="seb_3.0_t1c_32batch_DL", config=args)
 args = wandb.config
 # Load the data
 print("\033[1;35;40m Loading the folders...\033[0m")
@@ -86,12 +86,12 @@ if osp.exists(args.save):
 
 # Set the optimizer, scheduler and loss function
 
-#optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=args.weight_decay) #TODO we can add weight decay later on maybe?
-optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
+optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=args.weight_decay) 
+#optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 scheduler = sch.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
-class_weights = torch.tensor([0.1,0.9,0.9,0.9],dtype=torch.float).cuda() #idk if this is the correct way to do it
-#criterion = monai.losses.DiceLoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean")
-criterion = nn.CrossEntropyLoss(reduction='mean', weight=class_weights)
+class_weights = torch.tensor([0.5,1,1,1],dtype=torch.float).cuda() #idk if this is the correct way to do it
+criterion = monai.losses.DiceLoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean")
+#criterion = nn.CrossEntropyLoss(reduction='mean', weight=class_weights)
 # Initialize the evaluator
 metrics = Evaluator()
 
@@ -106,11 +106,17 @@ def train(epoch)-> None:
         data = data.float()
         if args.cuda:
             data, target = data.cuda(), target.cuda()
-        data, target = Variable(data), Variable(target).long().squeeze_(1)
+        #print(data.shape,target.shape)
+        #data, target = Variable(data), Variable(target).long().squeeze_(1) #for crossentropyloss
+        data, target = Variable(data), Variable(target).long() #for diceloss
+        
         optimizer.zero_grad()
         output = model(data)
-        loss = criterion(output['out'], target) # for crossentropy
-        #loss = criterion(output['out'], target.unsqueeze(1)) # for monai
+        
+        #print(np.shape(output['out']),np.shape(target))
+        #train_dice = scoring.multiclass_dice_score(target.cpu().numpy(), output['out'].cpu().detach().numpy(), 2)
+        #loss = criterion(output['out'], target) # for crossentropy
+        loss = criterion(output['out'], target) # for diceloss
         loss.backward()
         #print("Gradients:", [p.grad for p in model.parameters() if p.grad is not None])  
         optimizer.step()
@@ -139,37 +145,54 @@ def test(epoch)-> float:
         data=data.float()
         if args.cuda:
             data, target = data.cuda(), target.cuda() 
-        data, target = Variable(data), Variable(target).long().squeeze_(1)
+        #data, target = Variable(data), Variable(target).long().squeeze_(1) #for crossentropyloss
+        data, target = Variable(data), Variable(target).long() #for diceloss
+        
         with torch.no_grad():
             output = model(data)
-        test_loss += criterion(output['out'], target).item() # for crossentropy
-        #test_loss += criterion(output['out'], target.unsqueeze(1)).item() # for monai
+
+        #test_loss = criterion(output['out'], target).item() # for crossentropy
+        test_loss += criterion(output['out'], target).item() # for diceloss
+        #test_loss_list.append(test_loss)
         pred = output['out'].cpu() 
         pred = F.softmax(pred, dim=1).numpy()
         target = target.cpu().numpy()
         pred_list.append(pred)
         
         pred = np.argmax(pred, axis=1)
+        #print(np.shape(pred),np.shape(target))
         
         datito, predi = data, pred
 
         if epoch in (args.epochs, 1, args.epochs // 2):
             # Log input image, ground truth, and predicted segmentation during testing
             for i in range(target.shape[0]):
+                #print("A",np.shape(targit[i]),"B",(np.shape(np.expand_dims(pred[i], axis=0))))  
+                #print("C",np.unique(targit[i]),"D",(np.unique(np.expand_dims(pred[i], axis=0))))
+                #print("Unique values in ground truth:", torch.unique(targit[i]))
+                #print("Min value in ground truth:", torch.min(targit[i]))
+                #print("Max value in ground truth:", torch.max(targit[i]))
+                pred_tensor = torch.tensor(pred[i], dtype=torch.float64)
+
+                #print("Unique values in prediction:", torch.unique(pred_tensor))
+                #print("Min value in prediction:", torch.min(pred_tensor))
+                #print("Max value in prediction:", torch.max(pred_tensor))
+
+
                 wandb.log({"input_image": wandb.Image(datis[i]),
                            "ground_truth": wandb.Image(targit[i]),
-                           "predicted_segmentation": wandb.Image(predi[i])})
+                           "predicted_segmentation": wandb.Image(pred_tensor.unsqueeze(0))})
 
         lista = []
         for i in range(target.shape[0]):
-            lista.append(scoring.dice_coef(target[i], pred[i]))
+            lista.append(scoring.multiclass_dice_score(target[i], pred[i], 4))
         DSC.extend(lista)
     
     if epoch == args.epochs:
         with open (f"{args.model}.pkl", "wb") as f:
             pickle.dump(pred_list, f)
 
-    Dice = np.mean(DSC)
+    Dice = np.nanmean(DSC)
     wandb.log({"dice_score": Dice, "epoch": epoch})
     wandb.log({"test_loss": test_loss, "epoch": epoch})
 

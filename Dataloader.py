@@ -28,12 +28,12 @@ class BRATSDataset(Dataset):
         
         for root, dirs, files in os.walk(os.path.join(data_path, image_dir)):
             for file in sorted(files):
-                if file.endswith('.jpg'):
+                if file.endswith('.npy'):
                     self.image_files.append(os.path.join(root, file))
 
         for root, dirs, files in os.walk(os.path.join(data_path, label_dir)):
             for file in sorted(files):
-                if file.endswith('.jpg'):
+                if file.endswith('.npy'):
                     self.label_files.append(os.path.join(root, file))
         
         assert(len(self.image_files) == len(self.label_files))
@@ -53,8 +53,8 @@ class BRATSDataset(Dataset):
         image_path = os.path.join(self.image_files[idx])
         label_path = os.path.join(self.label_files[idx])
 
-        image = np.array(Image.open(image_path))
-        label = np.array(Image.open(label_path))
+        image = np.load(image_path)
+        label = np.load(label_path)
 
         assert not np.any(np.isnan(image))
         assert not np.any(np.isnan(label))
@@ -65,7 +65,7 @@ class BRATSDataset(Dataset):
         if self.transform:
             image = self.transform(image)
             label = self.transform(label)
-            label[label != 0] = 1
+            #label[label != 0] = 1
 
             if (s==0).any():
                 image = transforms.Normalize(mean=m, std=s + 1e-6)(image)
