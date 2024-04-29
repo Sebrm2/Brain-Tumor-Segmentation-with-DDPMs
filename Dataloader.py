@@ -6,6 +6,8 @@ from skimage.transform import resize
 from torchvision import transforms
 from PIL import Image
 
+
+
 # Dataset class
 class BRATSDataset(Dataset):
     def __init__(self, data_path, transform=None,dataset_type='train', limit_samples=None):
@@ -25,7 +27,7 @@ class BRATSDataset(Dataset):
             label_dir = 'Test/Mask'
         else:
             raise ValueError(f'Invalid dataset type: {dataset_type}')
-        
+        print(os.path.join(data_path, image_dir))
         for root, dirs, files in os.walk(os.path.join(data_path, image_dir)):
             for file in sorted(files):
                 if file.endswith('.npy'):
@@ -59,10 +61,14 @@ class BRATSDataset(Dataset):
         assert not np.any(np.isnan(image))
         assert not np.any(np.isnan(label))
         
+        image = resize(image, (256, 256), mode='reflect')
+        label = resize(label, (256, 256), mode='reflect')
         image = np.repeat(image[..., np.newaxis], 3, axis=-1)
         m, s = np.mean(image, axis=(0, 1)), np.std(image, axis=(0, 1))
 
         if self.transform:
+            
+
             image = self.transform(image)
             label = self.transform(label)
             #label[label != 0] = 1
@@ -71,6 +77,8 @@ class BRATSDataset(Dataset):
                 image = transforms.Normalize(mean=m, std=s + 1e-6)(image)
             else:
                 image = transforms.Normalize(mean=m, std=s)(image)
+
+        
 
         return image, label
     
