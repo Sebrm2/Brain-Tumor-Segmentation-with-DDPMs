@@ -19,12 +19,16 @@ import torch.utils.model_zoo as model_zoo
 from config import model_config
 from torch.autograd import Variable
 #from Dataloader import BRATSDataset
-from Dataloader_4channels import BRATSDataset
+from Dataloader_3D import BRATSDataset
 from utils.Evaluator import Evaluator
+from monai.networks.nets import UNETR
+import pandas as pd
+from monai.transforms import LoadImaged, EnsureChannelFirstd, Compose, ResizeD, Orientationd
+from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms, models
+import os
 
-
+load_model = False
 # Load the configuration
 args = model_config()
 
@@ -40,43 +44,46 @@ else:
 # Set arguments for Dataloaders
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
-# Set main directory of data
-directory_t1c = "BraTS2023_StructuredDataV3.0-t1c/BraTS2023_AxialSlices" 
-directory_t1n = "BraTS2023_StructuredDataV3.0-t1n/BraTS2023_AxialSlices" 
-directory_t2f = "BraTS2023_StructuredDataV3.0-t2f/BraTS2023_AxialSlices" 
-directory_t2w = "BraTS2023_StructuredDataV3.0-t2w/BraTS2023_AxialSlices" 
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+dataset_path = "dataset.csv"
 
 # Initialize WandB
 wandb.login()
-wandb.init(project="brainDDPM", name="lina_3.0_4channels_16batch_UNET_GeneralizedDL_Z-norm", config=args)
+wandb.init(project="brainDDPM", name="lina_3D_4channels_1batch_UNETR", config=args)
 args = wandb.config
 # Load the data
 print("\033[1;35;40m Loading the folders...\033[0m")
 
-train_loader = DataLoader(BRATSDataset(data_path = [directory_t1c,directory_t1n,directory_t2f,directory_t2w] , dataset_type='train',
-                transform=transforms.Compose([transforms.ToTensor()])), args.batch_size,
-                shuffle=True, **kwargs)
+transform = Compose([
+    LoadImaged(keys=["t1c", "t1n", "t2f", "t2w", "seg"], image_only=False),  # Include 'seg' for the label
+    EnsureChannelFirstd(keys=["t1c", "t1n", "t2f", "t2w", "seg"]),
+    ResizeD(keys=["t1c", "t1n", "t2f", "t2w", "seg"], spatial_size=(128, 128, 128)),
+    #Orientationd(keys=["t1c", "t1n", "t2f", "t2w", "seg"], axcodes="PLI"),
+])
 
-test_loader = DataLoader(BRATSDataset(data_path = [directory_t1c,directory_t1n,directory_t2f,directory_t2w], dataset_type='test',
-                transform=transforms.Compose([transforms.ToTensor()])), args.batch_size,
+train_loader = DataLoader(BRATSDataset("dataset.csv", modality="train", transform=transform), args.batch_size,
+                shuffle=True, **kwargs)
+test_loader = DataLoader(BRATSDataset("dataset.csv", modality="test", transform=transform), args.batch_size,
                 shuffle=False, **kwargs)
 
 # Load the model
 print("\033[1;35;40m Loading the model...\033[0m")
 
-#model = models.segmentation.deeplabv3_resnet101(pretrained=True, progress=True)
-model = torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
-                       in_channels=3, out_channels=1, init_features=32, pretrained=True)
-model.conv = nn.Conv2d(32, 4, kernel_size=(1, 1), stride=(1, 1))
-model.encoder1[0] = nn.Conv2d(4, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+model = UNETR(
+    in_channels=4,        
+    out_channels=4,
+    img_size=(128, 128, 128))
 
-#model.backbone.conv1 = nn.Conv2d(1, 64, kernel_size=(7,7), stride=(2, 2), padding=(3, 3), bias=False)
-#model.classifier[4] = nn.Conv2d(256, 4, kernel_size=(1, 1), stride=(1, 1))
-#model.aux_classifier[4] = nn.Conv2d(256, 4, kernel_size=(1, 1), stride=(1, 1))
-load_model = False
-#breakpoint()
-# Set number of GPUs to use
+"""
+model = UNet(
+    spatial_dims=3,
+    in_channels=4,
+    out_channels=4,
+    channels=(16, 32, 64, 128, 256),
+    strides=(2, 2, 2, 2),
+    num_res_units=0)
+"""
+
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
     if torch.cuda.device_count() > 1:
@@ -100,8 +107,8 @@ optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=args.weight_d
 #optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 scheduler = sch.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
 #class_weights = torch.tensor([1,1,1],dtype=torch.float).cuda() #idk if this is the correct way to do it
-#criterion = monai.losses.DiceLoss(softmax=False,to_onehot_y=True,include_background=False,reduction="mean")
-criterion = monai.losses.GeneralizedDiceLoss(softmax=False,to_onehot_y=True, include_background=False, reduction="mean")
+criterion = monai.losses.DiceLoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean")
+#criterion = nn.CrossEntropyLoss(reduction='mean', weight=class_weights)
 # Initialize the evaluator
 metrics = Evaluator()
 
@@ -111,20 +118,15 @@ def train(epoch)-> None:
     wandb.watch(model, criterion, log="all", log_freq=1)
     model.train()
     loss_list = []
-    for batch_idx, (data, target) in enumerate(train_loader):
+    for batch_idx, diccio in enumerate(train_loader):
         
-        data = data.float()
-        if args.cuda:
-            data, target = data.cuda(), target.cuda()
-        #data, target = Variable(data), Variable(target).long().squeeze_(1) #for crossentropyloss
-        data, target = Variable(data), Variable(target).long() #for diceloss
-        #print("data shape", data.shape)
-        #print("target shape", target.shape)
+        data = diccio['image'].float()
+        data, target = data.to(device), diccio["label"].to(device)
+        data, target = Variable(data), Variable(target).long()
         optimizer.zero_grad()
         output = model(data)
         #print("output shape", output.shape)
         #print(output[0])
-        
         #loss = criterion(output['out'], target) # for diceloss
         loss = criterion(output, target) # for unet
         loss.backward()
@@ -147,13 +149,10 @@ def test(epoch)-> float:
     test_loss = 0.
     x=0
 
-    for data, target in test_loader:
-
-        datis, targit = data, target
+    for diccio in test_loader:
         
-        data=data.float()
-        if args.cuda:
-            data, target = data.cuda(), target.cuda() 
+        data=diccio["image"].float()
+        data, target = data.to(device), diccio["label"].to(device)
         #data, target = Variable(data), Variable(target).long().squeeze_(1) #for crossentropyloss
         data, target = Variable(data), Variable(target).long() #for diceloss
         #print("data shape", data.shape)
@@ -180,12 +179,13 @@ def test(epoch)-> float:
                 #print("a",pred[i].shape)
                 pred_tensor = torch.tensor(pred[i], dtype=torch.float64)
                 #print("b",pred_tensor.shape)
+                """
                 wandb.log({#"input_image": wandb.Image(datis[i]),
                            "ground_truth": wandb.Image(targit[i]),
                            "predicted_segmentation": wandb.Image(pred_tensor.unsqueeze(0))})
-
+                """
         lista = []
-        for i in range(target.shape[0]): #[B,C,H,W]
+        for i in range(target.shape[0]):
             lista.append(scoring.multiclass_dice_score(target[i], pred[i], 4))
         DSC.extend(lista)
     
