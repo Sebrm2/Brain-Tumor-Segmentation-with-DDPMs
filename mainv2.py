@@ -41,25 +41,25 @@ else:
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 # Set main directory of data
-directory_t1c = "BraTS2023_StructuredDataV3.0-t1c/BraTS2023_AxialSlices" 
-directory_t1n = "BraTS2023_StructuredDataV3.0-t1n/BraTS2023_AxialSlices" 
-directory_t2f = "BraTS2023_StructuredDataV3.0-t2f/BraTS2023_AxialSlices" 
-directory_t2w = "BraTS2023_StructuredDataV3.0-t2w/BraTS2023_AxialSlices" 
+directory_t1c = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV3.0-t1c/BraTS2023_AxialSlices" 
+directory_t1n = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV3.0-t1n/BraTS2023_AxialSlices" 
+directory_t2f = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV3.0-t2f/BraTS2023_AxialSlices" 
+directory_t2w = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV3.0-t2w/BraTS2023_AxialSlices"
 
 
 # Initialize WandB
 wandb.login()
-wandb.init(project="brainDDPM", name="lina_3.0_4channels_16batch_UNET_GeneralizedDL_Z-norm", config=args)
+wandb.init(project="brainDDPM", name="seb_3.0_4channels_32batch_UNET_GeneralizedDL_Z-norm", config=args)
 args = wandb.config
 # Load the data
 print("\033[1;35;40m Loading the folders...\033[0m")
 
 train_loader = DataLoader(BRATSDataset(data_path = [directory_t1c,directory_t1n,directory_t2f,directory_t2w] , dataset_type='train',
-                transform=transforms.Compose([transforms.ToTensor()])), args.batch_size,
+                transform=transforms.Compose([transforms.ToTensor()]), limit_samples=300), args.batch_size,
                 shuffle=True, **kwargs)
 
 test_loader = DataLoader(BRATSDataset(data_path = [directory_t1c,directory_t1n,directory_t2f,directory_t2w], dataset_type='test',
-                transform=transforms.Compose([transforms.ToTensor()])), args.batch_size,
+                transform=transforms.Compose([transforms.ToTensor()]), limit_samples=300), args.batch_size,
                 shuffle=False, **kwargs)
 
 # Load the model
@@ -138,64 +138,109 @@ def train(epoch)-> None:
 
     wandb.log({"train_loss": np.mean(loss_list), "epoch": epoch})
             
+
+class_t = {
+    0: "background",
+    1: "NCR",
+    2: "ET",
+    3: "ED"
+}
+class_colors = [
+    [0, 0, 0],       
+    [255, 0, 0],     
+    [0, 255, 0],     
+    [0, 0, 255]      
+]
+
 # Test the model
-def test(epoch)-> float:
-    DSC =[]
+def test(epoch, best_dice, model) -> float:
+    dice_class = {1: [], 2: [], 3: []} 
+    DSC = []  
     pred_list = []
     model.eval()
     metrics.reset()
     test_loss = 0.
-    x=0
+    mask_list = []
 
     for data, target in test_loader:
-
         datis, targit = data, target
-        
-        data=data.float()
+
+        data = data.float()
         if args.cuda:
-            data, target = data.cuda(), target.cuda() 
-        #data, target = Variable(data), Variable(target).long().squeeze_(1) #for crossentropyloss
-        data, target = Variable(data), Variable(target).long() #for diceloss
-        #print("data shape", data.shape)
-        #print("target shape", target.shape)
+            data, target = data.cuda(), target.cuda()
+
+        data, target = Variable(data), Variable(target).long() 
+
         with torch.no_grad():
             output = model(data)
-            #print("output shape", output['out'].shape)
 
-        #test_loss += criterion(output['out'], target).item() # for diceloss or crossentropy
-        test_loss += criterion(output, target).item() # for unet
+        test_loss += criterion(output, target).item()
 
         pred = output.cpu()
-        #print("pred shape1", pred.shape) 
         pred = F.softmax(pred, dim=1).numpy()
-        #print("pred softmax shape", pred.shape)
         target = target.cpu().numpy()
         pred_list.append(pred)
         pred = np.argmax(pred, axis=1)
-        #print("pred argmax shape", pred.shape)
 
+
+        # Logging & Visualization 
         if epoch in (args.epochs, 1, args.epochs // 2):
- 
+            table = wandb.Table(columns=["Prediction"])
             for i in range(target.shape[0]):
-                #print("a",pred[i].shape)
                 pred_tensor = torch.tensor(pred[i], dtype=torch.float64)
-                #print("b",pred_tensor.shape)
-                wandb.log({#"input_image": wandb.Image(datis[i]),
-                           "ground_truth": wandb.Image(targit[i]),
-                           "predicted_segmentation": wandb.Image(pred_tensor.unsqueeze(0))})
 
+                
+                
+                wandb.log(
+                {"Prediction" : wandb.Image(data[i][0], masks={
+                    "predictions" : {
+                        "mask_data" : np.array(pred_tensor),
+                        "class_labels" : class_t
+                }
+                    
+                })
+                })
+
+                wandb.log(
+                {"Ground Truth" : wandb.Image(data[i][0], masks={
+                    
+                    "ground_truth" : {
+                        "mask_data" : np.array(targit[i].squeeze(0)),
+                    "class_labels" : class_t
+                }
+                })})
+                
+            
         lista = []
-        for i in range(target.shape[0]): #[B,C,H,W]
-            lista.append(scoring.multiclass_dice_score(target[i], pred[i], 4))
+        lista_1, lista_2, lista_3 = [], [], []
+        for i in range(target.shape[0]):
+            diccio_l = scoring.multiclass_dice_score(target[i], pred[i], 4)
+            lista.append(diccio_l[0])
+            if 1 in diccio_l.keys():
+                lista_1.append(diccio_l[1])
+            if 2 in diccio_l.keys():
+                lista_2.append(diccio_l[2])
+            if 3 in diccio_l.keys():
+                lista_3.append(diccio_l[3])
         DSC.extend(lista)
-    
-    if epoch == args.epochs:
-        with open (f"{args.model}.pkl", "wb") as f:
-            pickle.dump(pred_list, f)
-
+        dice_class[1].extend(lista_1)
+        dice_class[2].extend(lista_2)
+        dice_class[3].extend(lista_3)
+  
     Dice = np.nanmean(DSC)
+    channel_1 = np.nanmean(dice_class[1])
+    channel_2 = np.nanmean(dice_class[2])
+    channel_3 = np.nanmean(dice_class[3])
     wandb.log({"dice_score": Dice, "epoch": epoch})
     wandb.log({"test_loss": test_loss, "epoch": epoch})
+    wandb.log({f"dice_score_{class_t[1]}": channel_1, "epoch": epoch})
+    wandb.log({f"dice_score_{class_t[2]}": channel_2, "epoch": epoch})
+    wandb.log({f"dice_score_{class_t[3]}": channel_3, "epoch": epoch})
+    
+
+    if Dice > best_dice:
+        best_dice = Dice
+        torch.save(model.state_dict(), f"{args.model}_best.pth")
 
     with open(f"dice{args.model}.txt", "a") as f:
         f.write(f"Test\n")
@@ -205,19 +250,21 @@ def test(epoch)-> float:
     print('[Epoch: %d, numImages: %5d]' % (epoch, len(test_loader.dataset))) # type: ignore
     print("Dice:{}".format(Dice))
 
-    return test_loss
+    return test_loss, best_dice
+
 
 
 # Run the model
 if __name__ == '__main__':
     best_loss = None
+    best_dice = 0
     if load_model:
         best_loss = test(0)
     try:
         for epoch in range(1, args.epochs + 1):
             epoch_start_time = time.time()
             train(epoch)
-            test_loss = test(epoch)
+            test_loss, dice = test(epoch, best_dice, model)
             print('-' * 89)
             print('| end of epoch {:3d} | time: {:5.2f}s '.format(
                 epoch, time.time() - epoch_start_time))
@@ -229,6 +276,8 @@ if __name__ == '__main__':
                 #with open(args.save, 'wb') as fp:
                 #    state = model.state_dict()
                 #    torch.save(state, fp)
+            if dice > best_dice:
+                best_dice = dice
             
             scheduler.step() 
 
