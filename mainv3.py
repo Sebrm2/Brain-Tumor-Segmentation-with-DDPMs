@@ -21,9 +21,9 @@ from torch.autograd import Variable
 #from Dataloader import BRATSDataset
 from Dataloader_3D import BRATSDataset
 from utils.Evaluator import Evaluator
-from monai.networks.nets import UNETR
+from monai.networks.nets import UNETR, UNet
 import pandas as pd
-from monai.transforms import LoadImaged, EnsureChannelFirstd, Compose, ResizeD, Orientationd
+from monai.transforms import LoadImaged, EnsureChannelFirstd, Compose, ResizeD, Orientationd, NormalizeIntensityd, ClipIntensityPercentilesd
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import os
@@ -49,7 +49,7 @@ dataset_path = "dataset.csv"
 
 # Initialize WandB
 wandb.login()
-wandb.init(project="brainDDPM", name="lina_3D_4channels_1batch_UNETR", config=args)
+wandb.init(project="brainDDPM", name="seb_3D_4channels_UNet_DL_Znorm", config=args)
 args = wandb.config
 # Load the data
 print("\033[1;35;40m Loading the folders...\033[0m")
@@ -58,6 +58,8 @@ transform = Compose([
     LoadImaged(keys=["t1c", "t1n", "t2f", "t2w", "seg"], image_only=False),  # Include 'seg' for the label
     EnsureChannelFirstd(keys=["t1c", "t1n", "t2f", "t2w", "seg"]),
     ResizeD(keys=["t1c", "t1n", "t2f", "t2w", "seg"], spatial_size=(128, 128, 128)),
+    NormalizeIntensityd(keys=["t1c", "t1n", "t2f", "t2w"]),
+    #ClipIntensityPercentilesd(keys=["t1c", "t1n", "t2f", "t2w"], lower=5, upper=95),
     #Orientationd(keys=["t1c", "t1n", "t2f", "t2w", "seg"], axcodes="PLI"),
 ])
 
@@ -68,13 +70,13 @@ test_loader = DataLoader(BRATSDataset("dataset.csv", modality="test", transform=
 
 # Load the model
 print("\033[1;35;40m Loading the model...\033[0m")
-
+'''
 model = UNETR(
     in_channels=4,        
     out_channels=4,
     img_size=(128, 128, 128))
+'''
 
-"""
 model = UNet(
     spatial_dims=3,
     in_channels=4,
@@ -82,11 +84,10 @@ model = UNet(
     channels=(16, 32, 64, 128, 256),
     strides=(2, 2, 2, 2),
     num_res_units=0)
-"""
 
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
-    if torch.cuda.device_count() > 1:
+    if torch.cuda.device_count() >= 1:
         print("Using", torch.cuda.device_count(), "GPUs.")
         model = torch.nn.DataParallel(model)
         model.cuda()
@@ -108,6 +109,7 @@ optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=args.weight_d
 scheduler = sch.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
 #class_weights = torch.tensor([1,1,1],dtype=torch.float).cuda() #idk if this is the correct way to do it
 criterion = monai.losses.DiceLoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean")
+#criterion = monai.losses.GeneralizedDiceLoss(softmax=False,to_onehot_y=True, include_background=False, reduction="mean")
 #criterion = nn.CrossEntropyLoss(reduction='mean', weight=class_weights)
 # Initialize the evaluator
 metrics = Evaluator()
@@ -125,9 +127,8 @@ def train(epoch)-> None:
         data, target = Variable(data), Variable(target).long()
         optimizer.zero_grad()
         output = model(data)
-        #print("output shape", output.shape)
-        #print(output[0])
-        #loss = criterion(output['out'], target) # for diceloss
+        
+        
         loss = criterion(output, target) # for unet
         loss.backward()
         optimizer.step()
@@ -139,9 +140,18 @@ def train(epoch)-> None:
     print("Mean Training Loss: ", np.mean(loss_list))
 
     wandb.log({"train_loss": np.mean(loss_list), "epoch": epoch})
-            
+
+
+class_t = {
+    0: "background",
+    1: "NCR",
+    2: "ET",
+    3: "ED"
+}
+
 # Test the model
-def test(epoch)-> float:
+def test(epoch, best_dice)-> float:
+    dice_class = {1: [], 2: [], 3: []} 
     DSC =[]
     pred_list = []
     model.eval()
@@ -155,8 +165,7 @@ def test(epoch)-> float:
         data, target = data.to(device), diccio["label"].to(device)
         #data, target = Variable(data), Variable(target).long().squeeze_(1) #for crossentropyloss
         data, target = Variable(data), Variable(target).long() #for diceloss
-        #print("data shape", data.shape)
-        #print("target shape", target.shape)
+    
         with torch.no_grad():
             output = model(data)
             #print("output shape", output['out'].shape)
@@ -171,31 +180,68 @@ def test(epoch)-> float:
         target = target.cpu().numpy()
         pred_list.append(pred)
         pred = np.argmax(pred, axis=1)
-        #print("pred argmax shape", pred.shape)
-
+        
         if epoch in (args.epochs, 1, args.epochs // 2):
- 
+
+            slices = np.linspace(40, 85, 10)
+
             for i in range(target.shape[0]):
-                #print("a",pred[i].shape)
-                pred_tensor = torch.tensor(pred[i], dtype=torch.float64)
-                #print("b",pred_tensor.shape)
-                """
-                wandb.log({#"input_image": wandb.Image(datis[i]),
-                           "ground_truth": wandb.Image(targit[i]),
-                           "predicted_segmentation": wandb.Image(pred_tensor.unsqueeze(0))})
-                """
+                for slice in slices:
+                    
+                    #print("a",pred[i].shape)
+                    pred_tensor = torch.tensor(pred[i], dtype=torch.float64)
+                    print("b",pred_tensor.shape)
+                    slice = int(slice)
+                    wandb.log(
+                    {"Prediction" : wandb.Image(data[i][0][:,:,slice], masks={
+                        "predictions" : {
+                            "mask_data" : np.array(pred_tensor[:,:,slice]),
+                            "class_labels" : class_t
+                    }
+                        
+                    })
+                    })
+
+                    wandb.log(
+                    {"Ground Truth" : wandb.Image(data[i][0][:,:,slice], masks={
+                        
+                        "ground_truth" : {
+                            "mask_data" : np.array((target[i].squeeze(0))[:,:,slice]),
+                        "class_labels" : class_t
+                    }
+                    })})
+
         lista = []
+        lista_1, lista_2, lista_3 = [], [], []
         for i in range(target.shape[0]):
-            lista.append(scoring.multiclass_dice_score(target[i], pred[i], 4))
+            diccio_l = scoring.multiclass_dice_score(target[i], pred[i], 4)
+            lista.append(diccio_l[0])
+            if 1 in diccio_l.keys():
+                lista_1.append(diccio_l[1])
+            if 2 in diccio_l.keys():
+                lista_2.append(diccio_l[2])
+            if 3 in diccio_l.keys():
+                lista_3.append(diccio_l[3])
         DSC.extend(lista)
+        dice_class[1].extend(lista_1)
+        dice_class[2].extend(lista_2)
+        dice_class[3].extend(lista_3)
     
-    if epoch == args.epochs:
-        with open (f"{args.model}.pkl", "wb") as f:
-            pickle.dump(pred_list, f)
+   
 
     Dice = np.nanmean(DSC)
+    channel_1 = np.nanmean(dice_class[1])
+    channel_2 = np.nanmean(dice_class[2])
+    channel_3 = np.nanmean(dice_class[3])
     wandb.log({"dice_score": Dice, "epoch": epoch})
     wandb.log({"test_loss": test_loss, "epoch": epoch})
+    wandb.log({f"dice_score_{class_t[1]}": channel_1, "epoch": epoch})
+    wandb.log({f"dice_score_{class_t[2]}": channel_2, "epoch": epoch})
+    wandb.log({f"dice_score_{class_t[3]}": channel_3, "epoch": epoch})
+
+    if Dice > best_dice:
+        best_dice = Dice
+        torch.save(model.state_dict(), f"{args.model}_best.pth")
 
     with open(f"dice{args.model}.txt", "a") as f:
         f.write(f"Test\n")
@@ -211,13 +257,14 @@ def test(epoch)-> float:
 # Run the model
 if __name__ == '__main__':
     best_loss = None
+    best_dice = 0
     if load_model:
         best_loss = test(0)
     try:
         for epoch in range(1, args.epochs + 1):
             epoch_start_time = time.time()
             train(epoch)
-            test_loss = test(epoch)
+            test_loss = test(epoch, best_dice)
             print('-' * 89)
             print('| end of epoch {:3d} | time: {:5.2f}s '.format(
                 epoch, time.time() - epoch_start_time))
