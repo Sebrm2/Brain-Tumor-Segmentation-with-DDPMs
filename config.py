@@ -5,11 +5,11 @@ import argparse
 def model_config():
 
     parser = argparse.ArgumentParser(description='PyTorch Brain Tumor Segmentation')
-    parser.add_argument('--batch-size', type=int, default=32,
+    parser.add_argument('--batch-size', type=int, default=1,
                         help='input batch size for training (default: idk)')
     parser.add_argument('--epochs', type=int, default=6,
                         help='number of epochs to train (default: idk)')
-    parser.add_argument('--lr', type=float, default= 0.001,
+    parser.add_argument('--lr', type=float, default= 0.0001,
                         help='learning rate (default: idk)')
     parser.add_argument('--weight-decay', type=float, default=1e-4,
                         help='weight decay (default: 1e-4)')

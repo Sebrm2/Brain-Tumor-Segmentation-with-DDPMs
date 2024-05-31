@@ -49,17 +49,17 @@ directory_t2w = "/home/srodriguez47/ddpm/BraTS2023_StructuredDataV3.0-t2w/BraTS2
 
 # Initialize WandB
 wandb.login()
-wandb.init(project="brainDDPM", name="seb_3.0_4channels_32batch_UNET_GeneralizedDL_Z-norm", config=args)
+wandb.init(project="brainDDPM", name="seb_3.0_4channels_32batch_UNET_GeneralizedDL_Percentile-norm", config=args)
 args = wandb.config
 # Load the data
 print("\033[1;35;40m Loading the folders...\033[0m")
 
 train_loader = DataLoader(BRATSDataset(data_path = [directory_t1c,directory_t1n,directory_t2f,directory_t2w] , dataset_type='train',
-                transform=transforms.Compose([transforms.ToTensor()]), limit_samples=300), args.batch_size,
+                transform=transforms.Compose([transforms.ToTensor()])), args.batch_size,
                 shuffle=True, **kwargs)
 
 test_loader = DataLoader(BRATSDataset(data_path = [directory_t1c,directory_t1n,directory_t2f,directory_t2w], dataset_type='test',
-                transform=transforms.Compose([transforms.ToTensor()]), limit_samples=300), args.batch_size,
+                transform=transforms.Compose([transforms.ToTensor()])), args.batch_size,
                 shuffle=False, **kwargs)
 
 # Load the model
@@ -79,7 +79,7 @@ load_model = False
 # Set number of GPUs to use
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
-    if torch.cuda.device_count() > 1:
+    if torch.cuda.device_count() >= 1:
         print("Using", torch.cuda.device_count(), "GPUs.")
         model = torch.nn.DataParallel(model)
         model.cuda()
@@ -145,12 +145,7 @@ class_t = {
     2: "ET",
     3: "ED"
 }
-class_colors = [
-    [0, 0, 0],       
-    [255, 0, 0],     
-    [0, 255, 0],     
-    [0, 0, 255]      
-]
+
 
 # Test the model
 def test(epoch, best_dice, model) -> float:
@@ -184,8 +179,8 @@ def test(epoch, best_dice, model) -> float:
 
 
         # Logging & Visualization 
-        if epoch in (args.epochs, 1, args.epochs // 2):
-            table = wandb.Table(columns=["Prediction"])
+        if epoch in (args.epochs, args.epochs // 2):
+            
             for i in range(target.shape[0]):
                 pred_tensor = torch.tensor(pred[i], dtype=torch.float64)
 

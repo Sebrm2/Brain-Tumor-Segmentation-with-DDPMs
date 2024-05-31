@@ -49,7 +49,7 @@ dataset_path = "dataset.csv"
 
 # Initialize WandB
 wandb.login()
-wandb.init(project="brainDDPM", name="seb_3D_4channels_UNet_DL_Znorm", config=args)
+wandb.init(project="brainDDPM", name="lina_3D_4channels_UNETR_DL_Percentilenorm", config=args)
 args = wandb.config
 # Load the data
 print("\033[1;35;40m Loading the folders...\033[0m")
@@ -58,8 +58,8 @@ transform = Compose([
     LoadImaged(keys=["t1c", "t1n", "t2f", "t2w", "seg"], image_only=False),  # Include 'seg' for the label
     EnsureChannelFirstd(keys=["t1c", "t1n", "t2f", "t2w", "seg"]),
     ResizeD(keys=["t1c", "t1n", "t2f", "t2w", "seg"], spatial_size=(128, 128, 128)),
-    NormalizeIntensityd(keys=["t1c", "t1n", "t2f", "t2w"]),
-    #ClipIntensityPercentilesd(keys=["t1c", "t1n", "t2f", "t2w"], lower=5, upper=95),
+    #NormalizeIntensityd(keys=["t1c", "t1n", "t2f", "t2w"]),
+    ClipIntensityPercentilesd(keys=["t1c", "t1n", "t2f", "t2w"], lower=5, upper=95),
     #Orientationd(keys=["t1c", "t1n", "t2f", "t2w", "seg"], axcodes="PLI"),
 ])
 
@@ -70,13 +70,14 @@ test_loader = DataLoader(BRATSDataset("dataset.csv", modality="test", transform=
 
 # Load the model
 print("\033[1;35;40m Loading the model...\033[0m")
-'''
+
 model = UNETR(
     in_channels=4,        
     out_channels=4,
     img_size=(128, 128, 128))
-'''
 
+
+'''
 model = UNet(
     spatial_dims=3,
     in_channels=4,
@@ -84,7 +85,7 @@ model = UNet(
     channels=(16, 32, 64, 128, 256),
     strides=(2, 2, 2, 2),
     num_res_units=0)
-
+'''
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
     if torch.cuda.device_count() >= 1:
@@ -109,7 +110,7 @@ optimizer = optim.Adam(model.parameters(), lr=args.lr,weight_decay=args.weight_d
 scheduler = sch.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
 #class_weights = torch.tensor([1,1,1],dtype=torch.float).cuda() #idk if this is the correct way to do it
 criterion = monai.losses.DiceLoss(softmax=True,to_onehot_y=True,include_background=False,reduction="mean")
-#criterion = monai.losses.GeneralizedDiceLoss(softmax=False,to_onehot_y=True, include_background=False, reduction="mean")
+#criterion = monai.losses.GeneralizedDiceLoss(softmax=True,to_onehot_y=True, include_background=False, reduction="mean")
 #criterion = nn.CrossEntropyLoss(reduction='mean', weight=class_weights)
 # Initialize the evaluator
 metrics = Evaluator()
@@ -128,7 +129,7 @@ def train(epoch)-> None:
         optimizer.zero_grad()
         output = model(data)
         
-        
+        #print("output shape", output.shape)
         loss = criterion(output, target) # for unet
         loss.backward()
         optimizer.step()
@@ -190,7 +191,7 @@ def test(epoch, best_dice)-> float:
                     
                     #print("a",pred[i].shape)
                     pred_tensor = torch.tensor(pred[i], dtype=torch.float64)
-                    print("b",pred_tensor.shape)
+                    #print("b",pred_tensor.shape)
                     slice = int(slice)
                     wandb.log(
                     {"Prediction" : wandb.Image(data[i][0][:,:,slice], masks={

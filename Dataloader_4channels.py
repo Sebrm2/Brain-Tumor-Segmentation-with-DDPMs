@@ -5,6 +5,7 @@ from torch.utils.data import Dataset
 from skimage.transform import resize
 from torchvision import transforms
 from PIL import Image
+from monai.transforms import ScaleIntensityRangePercentiles
 
 # Dataset class
 class BRATSDataset(Dataset):
@@ -85,7 +86,7 @@ class BRATSDataset(Dataset):
             image_ch3 = self.transform(image_ch3)
             image_ch4 = self.transform(image_ch4)
             label = self.transform(label)
-            
+            '''
             if (s_ch1==0).any():
                 image_ch1 = transforms.Normalize(mean=m_ch1, std=s_ch1 + 1e-6)(image_ch1)
                 image_ch2 = transforms.Normalize(mean=m_ch2, std=s_ch2 + 1e-6)(image_ch2)
@@ -96,7 +97,13 @@ class BRATSDataset(Dataset):
                 image_ch2 = transforms.Normalize(mean=m_ch2, std=s_ch2)(image_ch2)
                 image_ch3 = transforms.Normalize(mean=m_ch3, std=s_ch3)(image_ch3)
                 image_ch4 = transforms.Normalize(mean=m_ch4, std=s_ch4)(image_ch4)
-
+            '''
+            percentilescaler = ScaleIntensityRangePercentiles(5,95, b_min=0.0, b_max=1.0)
+            image_ch1 = percentilescaler(image_ch1)
+            image_ch2 = percentilescaler(image_ch2)
+            image_ch3 = percentilescaler(image_ch3)
+            image_ch4 = percentilescaler(image_ch4)
+    
         image = torch.cat((image_ch1, image_ch2, image_ch3, image_ch4), dim=0)
 
         return image, label

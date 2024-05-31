@@ -5,14 +5,14 @@ from sklearn.metrics import precision_score, recall_score, accuracy_score
 import medpy.metric.binary as md
 
 def multiclass_dice_score(targets, predictions, num_classes):
-
-    dice_scores = []
+    dice_scores = {}
     for class_id in range(1, num_classes):  # Exclude background (class 0)
         if np.any(predictions == class_id) or np.any(targets == class_id):
             dice_score = md.dc(predictions == class_id, targets == class_id)
-            dice_scores.append(dice_score)
-
-    return np.nanmean(dice_scores)
+            dice_scores[class_id] = dice_score
+    
+    dice_scores[0] = np.nanmean(list(dice_scores.values()))
+    return dice_scores
 
 def compute_dice(im1, im2, empty_value=1.0):
         """
